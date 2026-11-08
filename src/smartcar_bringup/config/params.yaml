@@ -4,90 +4,113 @@
 
 /**:
   ros__parameters:
-    # ---------------- 通用 ----------------
-    debug: true
-    ros_domain_id: 42
+    debug: false
 
-# ---------------- 相机 ----------------
+# ======================================================================
+# 相机（已实现）
+# ======================================================================
 camera_driver:
   ros__parameters:
+    source: device            # device=真实摄像头，video=视频文件回放
     device: /dev/video0
+    video_path: ""            # source=video 时必填，例如 /home/xxx/line.mp4
+    loop: true                # 视频回放是否循环
     width: 1280
     height: 720
-    fps: 30
-    # true=相机自动曝光；功能⑦要求主动控制，实车调试时改为 false
+    fps: 30.0
+    # 功能⑦要求主动控制曝光，实车调试时保持 false
     auto_exposure: false
-    exposure_absolute: 120     # 需用 v4l2-ctl --list-ctrls 确认真实取值范围
+    exposure_absolute: 120    # 需用 v4l2-ctl --list-ctrls 确认真实取值范围
     gain: 0
+    frame_id: camera_link
 
-# ---------------- 底盘 ----------------
-base_driver:
-  ros__parameters:
-    max_linear_speed: 0.50     # m/s
-    max_angular_speed: 1.50    # rad/s
-    wheel_base: 0.20           # m，按实际车型填写
-    wheel_radius: 0.065        # m，按实际车型填写
-    odom_frame: odom
-    base_frame: base_link
-
-# ---------------- 距离传感器 ----------------
-range_driver:
-  ros__parameters:
-    stop_distance: 0.30        # m，小于此距离立即停车
-    slow_distance: 0.50        # m，小于此距离减速
-
-# ---------------- 巡线 ----------------
-line_follower:
-  ros__parameters:
-    kp: 0.005
-    ki: 0.0
-    kd: 0.001
-    target_speed: 0.30
-    roi_top: 0.60              # 只取图像下方40%做巡线
-    threshold: 100             # 二值化阈值
-
-# ---------------- 识别人红绿灯 ----------------
+# ======================================================================
+# 视觉感知（已实现）
+# ======================================================================
 vision_detect:
   ros__parameters:
-    # HSV 阈值，按场地灯光重新标定
+    # ---- 巡线 ----
+    threshold: 100            # 二值化阈值
+    roi_top: 0.60             # 只取图像下方 40% 做巡线
+    invert: false             # false=检测暗线(黑线)，true=检测亮线(白线)
+    min_line_pixels: 300      # 低于此像素数视为丢线
+
+    # ---- 红绿灯 HSV 阈值，必须按场地灯光重新标定 ----
     red_h_min: 0
     red_h_max: 10
+    red2_h_min: 170
+    red2_h_max: 180
     green_h_min: 40
     green_h_max: 90
     yellow_h_min: 20
     yellow_h_max: 35
+    s_min: 80
+    v_min: 80
     min_area_px: 300
-    confidence_threshold: 0.60
-    model_path: models/yolov8n.onnx
-    ocr_use_space: false
+    confidence_area: 3000.0   # 像素面积达到此值时置信度记为 1.0
+    smooth_frames: 5          # 连续 N 帧同色才切换，抑制闪烁
 
-# ---------------- 光照与曝光 ----------------
+    # ---- 运行 ----
+    process_rate: 10.0        # 处理频率 Hz（相机 30Hz，处理 10Hz 足够）
+    qr_interval: 0.5          # 二维码检测间隔秒
+    debug: true               # 发布 /perception/debug_image
+
+# ======================================================================
+# 巡线控制（已实现）
+# ======================================================================
+line_follower:
+  ros__parameters:
+    kp: 1.20                  # 输入是归一化偏移，范围 [-1,1]
+    ki: 0.05
+    kd: 0.10
+    target_speed: 0.30        # m/s
+    min_speed_ratio: 0.40     # 偏移最大时速度降到 40%
+    max_angular: 1.50         # rad/s
+    line_timeout: 0.50        # 超过此时间收不到偏移就停车
+    integral_limit: 1.0
+    control_rate: 20.0        # 控制频率 Hz
+    enable: true
+
+# ======================================================================
+# 以下为待实现模块的占位参数（选车后填写）
+# ======================================================================
+base_driver:
+  ros__parameters:
+    max_linear_speed: 0.50
+    max_angular_speed: 1.50
+    wheel_base: 0.20
+    wheel_radius: 0.065
+    odom_frame: odom
+    base_frame: base_link
+
+range_driver:
+  ros__parameters:
+    stop_distance: 0.30
+    slow_distance: 0.50
+
 lighting_adaptor:
   ros__parameters:
-    dark_threshold: 60         # 平均亮度低于此值判定为暗
-    bright_threshold: 180      # 高于此值判定为亮
+    dark_threshold: 60
+    bright_threshold: 180
     exposure_dark: 300
     exposure_normal: 120
     exposure_bright: 40
-    smooth_frames: 15          # 连续N帧稳定后再切换，避免频繁抖动
+    smooth_frames: 15
 
-# ---------------- 语音 ----------------
 voice_input:
   ros__parameters:
-    backend: offline          # offline=本地Vosk，online=讯飞听写
+    backend: offline          # offline=Vosk，online=讯飞听写
     language: zh-CN
     sample_rate: 16000
     vosk_model_path: models/vosk-model-small-cn
 
-# ---------------- 语义解析 ----------------
 nlp_planner:
   ros__parameters:
-    backend: offline          # offline=本地模型，online=讯飞星火API
+    backend: offline          # offline=本地模型，online=讯飞星火
     temperature: 0.1
     max_retry: 2
 
-# ---------------- 任务状态机 ----------------
 mission_manager:
   ros__parameters:
-    task_timeout: 120.0       # 单条指令超时秒数
+    task_timeout: 120.0
     retry_limit: 2

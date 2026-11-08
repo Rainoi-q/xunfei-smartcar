@@ -27,15 +27,15 @@ smartcar_ws/
 ├── src/
 │   ├── smartcar_msgs/        # 公共消息定义（全组依赖，已实现）
 │   ├── smartcar_bringup/     # 一键启动、参数配置（已实现）
-│   ├── hardware/             # 硬件驱动层（选车后实现）
-│   │   ├── camera_driver/
-│   │   ├── base_driver/
-│   │   └── range_driver/
+│   ├── hardware/             # 硬件驱动层
+│   │   ├── camera_driver/    # 相机采集/视频回放（已实现）
+│   │   ├── base_driver/      # 底盘驱动（选车后实现）
+│   │   └── range_driver/     # 超声波/测距（选车后实现）
 │   ├── perception/           # 感知层
-│   │   ├── vision_detect/    # 巡线/红绿灯/二维码/OCR/货物
+│   │   ├── vision_detect/    # 巡线/红绿灯/二维码（已实现）
 │   │   └── lighting_adaptor/ # 光照判断 + 曝光自适应
 │   ├── control/              # 运动控制
-│   │   ├── line_follower/
+│   │   ├── line_follower/    # 巡线 PID（已实现）
 │   │   ├── obstacle_avoider/
 │   │   └── parking/
 │   ├── interaction/          # 交互
@@ -50,7 +50,8 @@ smartcar_ws/
 └── README.md
 ```
 
-> 除 `smartcar_msgs` 与 `smartcar_bringup` 已实现外，其余目录为**待建设的包**，由对应负责人在第一周内按 README 创建。各目录下的 README 写明了包名与职责。
+> 已实现：`smartcar_msgs`、`smartcar_bringup`、`camera_driver`、`vision_detect`、`line_follower`。
+> 其余目录为**待建设的包**，由对应负责人在第一周内按 README 创建。各目录下的 README 写明了包名与职责。
 
 ---
 
@@ -81,9 +82,48 @@ ros2 launch smartcar_bringup bringup.launch.py
 
 第一条能打印消息结构、第二条能正常启动，说明环境与仓库都通了。
 
+如果编译时报缺少 `cv_bridge` / `cv2` / `pyzbar`，执行：
+
+```bash
+sudo apt install -y ros-humble-cv-bridge python3-opencv python3-numpy \
+                    python3-pyzbar libzbar0
+```
+
 ---
 
-## 四、团队分工
+## 四、无车阶段联调（视频回放）
+
+车辆到位前，用一段道路视频验证「相机 → 视觉 → 控制」整条链路。
+
+```bash
+# 准备一段巡线视频，例如 ~/Videos/line.mp4
+ros2 launch smartcar_bringup demo.launch.py video_path:=$HOME/Videos/line.mp4
+
+# 另开终端观察
+ros2 topic hz  /camera/image_raw              # 应有 ~30 Hz
+ros2 topic echo /perception/line              # 应有 [-1,1] 的偏移
+ros2 topic echo /perception/traffic_light     # 出现红绿灯时有有效帧
+ros2 topic echo /cmd_vel                      # 有 PID 输出
+ros2 run rqt_image_view rqt_image_view /perception/debug_image
+```
+
+**用真实摄像头**：把 `params.yaml` 里 `camera_driver.source` 改成 `device`，
+`device` 指向设备节点（默认 `/dev/video0`），然后直接 `ros2 run`：
+
+```bash
+ros2 run camera_driver camera_node            # 只开相机
+ros2 run vision_detect vision_node            # 只开视觉
+```
+
+**调参纪律**：只改 `src/smartcar_bringup/config/params.yaml`，不要改代码里的默认值。
+红绿灯 HSV 阈值必须按场地实测灯光重新标定（见 `docs/功能清单.md` ⑩）。
+
+> ⚠️ 本阶段 `/cmd_vel` 只发到话题，没有底盘节点执行，车不会动。上实车前先确认
+> `base_driver` 已实现、且 `line_follower` 的 `enable` 参数可控。
+
+---
+
+## 五、团队分工
 
 | 代号 | 角色 | 负责模块 | 对应功能编号 |
 |---|---|---|---|
@@ -96,7 +136,7 @@ ros2 launch smartcar_bringup bringup.launch.py
 
 ---
 
-## 五、分支与提交规范
+## 六、分支与提交规范
 
 ### 分支
 
@@ -129,7 +169,7 @@ ros2 launch smartcar_bringup bringup.launch.py
 
 ---
 
-## 六、第一周里程碑（11月15日前）
+## 七、第一周里程碑（11月15日前）
 
 - [ ] 全员能克隆并 `colcon build` 通过
 - [ ] `smartcar_msgs` 消息定义冻结
@@ -139,7 +179,7 @@ ros2 launch smartcar_bringup bringup.launch.py
 
 ---
 
-## 七、功能完成度追踪
+## 八、功能完成度追踪
 
 见 `docs/功能清单.md`（每周日晚更新）。
 
@@ -147,7 +187,7 @@ ros2 launch smartcar_bringup bringup.launch.py
 
 ---
 
-## 八、相关文档
+## 九、相关文档
 
 - 《方案一：原方案（全员开发）》— 桌面文档
 - 《方案二：D方案（成果与验证负责人）》— 桌面文档

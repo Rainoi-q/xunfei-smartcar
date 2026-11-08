@@ -13,6 +13,9 @@
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>smartcar_msgs</exec_depend>
+  <exec_depend>camera_driver</exec_depend>
+  <exec_depend>vision_detect</exec_depend>
+  <exec_depend>line_follower</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
