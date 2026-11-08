@@ -1,0 +1,93 @@
+# 全局参数文件
+# 纪律：所有可调参数写在这里，禁止硬编码在代码中。
+# 换场地/换光照时只改本文件，不改代码。
+
+/**:
+  ros__parameters:
+    # ---------------- 通用 ----------------
+    debug: true
+    ros_domain_id: 42
+
+# ---------------- 相机 ----------------
+camera_driver:
+  ros__parameters:
+    device: /dev/video0
+    width: 1280
+    height: 720
+    fps: 30
+    # true=相机自动曝光；功能⑦要求主动控制，实车调试时改为 false
+    auto_exposure: false
+    exposure_absolute: 120     # 需用 v4l2-ctl --list-ctrls 确认真实取值范围
+    gain: 0
+
+# ---------------- 底盘 ----------------
+base_driver:
+  ros__parameters:
+    max_linear_speed: 0.50     # m/s
+    max_angular_speed: 1.50    # rad/s
+    wheel_base: 0.20           # m，按实际车型填写
+    wheel_radius: 0.065        # m，按实际车型填写
+    odom_frame: odom
+    base_frame: base_link
+
+# ---------------- 距离传感器 ----------------
+range_driver:
+  ros__parameters:
+    stop_distance: 0.30        # m，小于此距离立即停车
+    slow_distance: 0.50        # m，小于此距离减速
+
+# ---------------- 巡线 ----------------
+line_follower:
+  ros__parameters:
+    kp: 0.005
+    ki: 0.0
+    kd: 0.001
+    target_speed: 0.30
+    roi_top: 0.60              # 只取图像下方40%做巡线
+    threshold: 100             # 二值化阈值
+
+# ---------------- 识别人红绿灯 ----------------
+vision_detect:
+  ros__parameters:
+    # HSV 阈值，按场地灯光重新标定
+    red_h_min: 0
+    red_h_max: 10
+    green_h_min: 40
+    green_h_max: 90
+    yellow_h_min: 20
+    yellow_h_max: 35
+    min_area_px: 300
+    confidence_threshold: 0.60
+    model_path: models/yolov8n.onnx
+    ocr_use_space: false
+
+# ---------------- 光照与曝光 ----------------
+lighting_adaptor:
+  ros__parameters:
+    dark_threshold: 60         # 平均亮度低于此值判定为暗
+    bright_threshold: 180      # 高于此值判定为亮
+    exposure_dark: 300
+    exposure_normal: 120
+    exposure_bright: 40
+    smooth_frames: 15          # 连续N帧稳定后再切换，避免频繁抖动
+
+# ---------------- 语音 ----------------
+voice_input:
+  ros__parameters:
+    backend: offline          # offline=本地Vosk，online=讯飞听写
+    language: zh-CN
+    sample_rate: 16000
+    vosk_model_path: models/vosk-model-small-cn
+
+# ---------------- 语义解析 ----------------
+nlp_planner:
+  ros__parameters:
+    backend: offline          # offline=本地模型，online=讯飞星火API
+    temperature: 0.1
+    max_retry: 2
+
+# ---------------- 任务状态机 ----------------
+mission_manager:
+  ros__parameters:
+    task_timeout: 120.0       # 单条指令超时秒数
+    retry_limit: 2
