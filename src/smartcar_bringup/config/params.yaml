@@ -1,79 +1,284 @@
 # 全局参数文件
 # 纪律：所有可调参数写在这里，禁止硬编码在代码中。
 # 换场地/换光照时只改本文件，不改代码。
+#
+# 适配说明（WHEELTEC RDK X5 实车）：
+#   - 出厂 Astra 彩色话题是 /camera/color/image_raw（不是 /camera/image_raw）
+#   - 深度话题默认 /camera/depth/image_raw
+#   - 雷达 /scan、里程计 /odom、底盘 /cmd_vel 由厂家 launch 提供
+#   - 本工作区只负责感知/控制/任务，不重复启动底盘驱动
 
 /**:
   ros__parameters:
     debug: false
 
 # ======================================================================
-# 相机（已实现）
+# 相机驱动（自研 UVC 相机/视频回放时使用；实车 Astra 用厂家节点）
 # ======================================================================
 camera_driver:
   ros__parameters:
-    source: device            # device=真实摄像头，video=视频文件回放
+    source: device
     device: /dev/video0
-    video_path: ""            # source=video 时必填，例如 /home/xxx/line.mp4
-    loop: true                # 视频回放是否循环
+    video_path: ""
+    loop: true
     width: 1280
     height: 720
     fps: 30.0
-    # 功能⑦要求主动控制曝光，实车调试时保持 false
     auto_exposure: false
-    exposure_absolute: 120    # 需用 v4l2-ctl --list-ctrls 确认真实取值范围
+    exposure_absolute: 120
     gain: 0
     frame_id: camera_link
 
 # ======================================================================
-# 视觉感知（已实现）
+# 视觉感知：④ 二维码多信息解析 + ⑫ 巡线（视觉）
 # ======================================================================
 vision_detect:
   ros__parameters:
-    # ---- 巡线 ----
-    threshold: 100            # 二值化阈值
-    roi_top: 0.60             # 只取图像下方 40% 做巡线
-    invert: false             # false=检测暗线(黑线)，true=检测亮线(白线)
-    min_line_pixels: 300      # 低于此像素数视为丢线
+    image_topic: /camera/color/image_raw
+    line_enable: true
+    qr_enable: true
+    process_rate: 10.0
+    debug: true
 
-    # ---- 红绿灯 HSV 阈值，必须按场地灯光重新标定 ----
-    red_h_min: 0
-    red_h_max: 10
-    red2_h_min: 170
-    red2_h_max: 180
-    green_h_min: 40
-    green_h_max: 90
-    yellow_h_min: 20
-    yellow_h_max: 35
-    s_min: 80
-    v_min: 80
-    min_area_px: 300
-    confidence_area: 3000.0   # 像素面积达到此值时置信度记为 1.0
-    smooth_frames: 5          # 连续 N 帧同色才切换，抑制闪烁
+    # 巡线：白底黑线用 invert=false；黑底白线改 true
+    threshold: 100
+    invert: false
+    roi_top: 0.60
+    use_hsv: false             # 彩色赛道线时改 true，并调 hsv_low/high
+    hsv_low: [0, 0, 0]
+    hsv_high: [180, 255, 80]
+    num_bands: 10
+    band_height_px: 12
+    min_line_pixels: 300
+    max_slope: 1.5
 
-    # ---- 运行 ----
-    process_rate: 10.0        # 处理频率 Hz（相机 30Hz，处理 10Hz 足够）
-    qr_interval: 0.5          # 二维码检测间隔秒
-    debug: true               # 发布 /perception/debug_image
+    # 二维码：一条码需包含这些字段才算有效
+    qr_interval: 0.5
+    qr_repeat_sec: 1.5
+    qr_required_fields: "order_id,consignee,destination"
+    qr_allow_plain_text: true
 
 # ======================================================================
-# 巡线控制（已实现）
+# ⑥ 光照强弱 + ⑦ 曝光自适应
+# ======================================================================
+lighting_adaptor:
+  ros__parameters:
+    image_topic: /camera/color/image_raw
+    process_rate: 5.0
+    roi_x_min: 0.15
+    roi_x_max: 0.85
+    roi_y_min: 0.25
+    roi_y_max: 0.75
+    dark_threshold: 60.0
+    bright_threshold: 170.0
+    hysteresis: 8.0
+    smooth_alpha: 0.3
+    initial_level: 1
+    target_luma: 110.0
+    deadband: 8.0
+    gain: 2.0
+    max_step: 60
+    update_interval: 0.8
+    invert_exposure: false
+
+    # v4l2=直接调 UVC 彩色相机；topic=发 /camera/set_exposure；none=只看亮度
+    exposure_backend: v4l2
+    v4l2_device: auto          # 自动找带 exposure_absolute 的 /dev/videoN
+    exposure_control: exposure_absolute
+    auto_control: auto_exposure
+    auto_off_value: 1
+    exposure_min: 1
+    exposure_max: 5000
+    initial_exposure: 120
+    restore_on_exit: true
+
+# ======================================================================
+# ⑤ OCR（tesseract 离线）
+# ======================================================================
+ocr_reader:
+  ros__parameters:
+    image_topic: /camera/color/image_raw
+    trigger_mode: both         # periodic / request / both
+    interval: 2.0
+    min_change: 2.0
+    roi_x_min: 0.10
+    roi_x_max: 0.90
+    roi_y_min: 0.10
+    roi_y_max: 0.70
+    scale: 1.5
+    method: otsu               # otsu / adaptive / none
+    lang: chi_sim+eng
+    psm: 6
+    min_conf: 30.0
+    min_quality: 0.5
+    min_chars: 2
+    timeout: 8.0
+    max_chars: 200
+    debug: true
+
+# ======================================================================
+# ⑫ 巡线控制（输出 /cmd_vel_line，经仲裁器）
 # ======================================================================
 line_follower:
   ros__parameters:
-    kp: 1.20                  # 输入是归一化偏移，范围 [-1,1]
+    kp: 1.20
     ki: 0.05
     kd: 0.10
-    target_speed: 0.30        # m/s
-    min_speed_ratio: 0.40     # 偏移最大时速度降到 40%
-    max_angular: 1.50         # rad/s
-    line_timeout: 0.50        # 超过此时间收不到偏移就停车
+    target_speed: 0.25
+    min_speed_ratio: 0.40
+    max_angular: 1.50
+    line_timeout: 0.50
     integral_limit: 1.0
-    control_rate: 20.0        # 控制频率 Hz
+    control_rate: 20.0
+    output_topic: /cmd_vel_line
     enable: true
 
 # ======================================================================
-# 以下为待实现模块的占位参数（选车后填写）
+# ⑪ 避障：雷达 + 深度
 # ======================================================================
+obstacle_avoider:
+  ros__parameters:
+    scan_topic: /scan
+    enable_scan: true
+    enable_depth: true
+    depth_topic: /camera/depth/image_raw
+    depth_scale: 0.0           # 0=按编码自动（16UC1→mm，32FC1→m）
+    forward_half_deg: 30.0
+    side_half_deg: 75.0
+    stop_distance: 0.35
+    slow_distance: 0.85
+    min_valid: 0.05
+    max_valid: 8.0
+    min_scale: 0.15
+    turn_gain: 1.2
+    max_bias: 0.9
+    # 深度只用画面上部，避免把地面当成障碍
+    depth_x_min: 0.35
+    depth_x_max: 0.65
+    depth_y_min: 0.35
+    depth_y_max: 0.65
+    depth_stop_distance: 0.20
+    depth_slow_distance: 0.50
+    scan_timeout: 0.6
+    depth_timeout: 0.6
+    stop_hold_sec: 0.5
+    rate: 10.0
+    debug: true
+
+# ======================================================================
+# 速度仲裁：全车唯一 /cmd_vel 发布者
+# ======================================================================
+cmd_vel_arbiter:
+  ros__parameters:
+    output_topic: /cmd_vel
+    publish_rate: 20.0
+    max_linear: 0.50
+    max_angular: 1.50
+    line_timeout: 0.50
+    park_timeout: 0.50
+    enable: true
+    debug: true
+
+# ======================================================================
+# ⑨ 二维码引导泊车
+# ======================================================================
+parking:
+  ros__parameters:
+    image_topic: /camera/color/image_raw
+    depth_topic: /camera/depth/image_raw
+    marker_source: qr
+    use_depth: true
+    depth_scale: 0.0
+    kp_angular: 1.4
+    center_tol: 0.12
+    align_exit_tol: 0.20
+    target_height_ratio: 0.28   # 无深度时用二维码高度占比测距，需现场标定
+    target_distance: 0.45       # 有深度时优先用这个（米）
+    approach_speed: 0.16
+    search_speed: 0.35
+    search_direction: 1.0
+    hold_sec: 1.5
+    timeout: 35.0
+    detect_rate: 5.0
+    control_rate: 10.0
+    marker_timeout: 0.8
+    auto_enable: false
+    debug: true
+
+# ======================================================================
+# ⑬ nav2 航点导航
+# ======================================================================
+waypoint_nav:
+  ros__parameters:
+    # waypoints_file 由 launch 传入；单独运行时自动用 ~/smartcar_ws/... 下的文件
+    frame_id: ""
+    goal_timeout: 120.0
+    retry_limit: 1
+    status_rate: 2.0
+
+# ======================================================================
+# 任务状态机
+# ======================================================================
+mission_manager:
+  ros__parameters:
+    auto_start_from_qr: true
+    mission_timeout: 240.0
+    status_rate: 1.0
+    skip_navigation: false
+
+# ======================================================================
+# HUD
+# ======================================================================
+hud:
+  ros__parameters:
+    image_topic: /camera/color/image_raw
+    output_topic: /hud/image
+    rate: 10.0
+    width: 960
+    height: 540
+
+# ======================================================================
+# 虚拟仿真（sim.launch.py 会覆盖部分参数）
+# ======================================================================
+virtual_sim:
+  ros__parameters:
+    camera_topic: /camera/color/image_raw
+    depth_topic: /camera/depth/image_raw
+    scan_topic: /scan
+    odom_topic: /odom
+    cmd_topic: /cmd_vel
+    width: 640
+    height: 480
+    near: 0.25
+    far: 2.25
+    lateral_span: 1.6
+    size_m: 6.0
+    ppm: 300
+    start_x: 0.90
+    start_y: 1.00
+    start_yaw: 0.0
+    max_linear: 0.5
+    max_angular: 1.5
+    camera_rate: 10.0
+    scan_rate: 10.0
+    physics_rate: 50.0
+    odom_rate: 20.0
+    rays: 360
+    max_range: 8.0
+    range_noise: 0.0
+    map_frame: map
+    odom_frame: odom
+    base_frame: base_link
+    camera_frame: camera_link
+
+# ======================================================================
+# 以下为本次不做的功能，保留占位避免误启动
+# ======================================================================
+range_driver:
+  ros__parameters:
+    stop_distance: 0.30
+    slow_distance: 0.50
+
 base_driver:
   ros__parameters:
     max_linear_speed: 0.50
@@ -82,35 +287,3 @@ base_driver:
     wheel_radius: 0.065
     odom_frame: odom
     base_frame: base_link
-
-range_driver:
-  ros__parameters:
-    stop_distance: 0.30
-    slow_distance: 0.50
-
-lighting_adaptor:
-  ros__parameters:
-    dark_threshold: 60
-    bright_threshold: 180
-    exposure_dark: 300
-    exposure_normal: 120
-    exposure_bright: 40
-    smooth_frames: 15
-
-voice_input:
-  ros__parameters:
-    backend: offline          # offline=Vosk，online=讯飞听写
-    language: zh-CN
-    sample_rate: 16000
-    vosk_model_path: models/vosk-model-small-cn
-
-nlp_planner:
-  ros__parameters:
-    backend: offline          # offline=本地模型，online=讯飞星火
-    temperature: 0.1
-    max_retry: 2
-
-mission_manager:
-  ros__parameters:
-    task_timeout: 120.0
-    retry_limit: 2

@@ -1,0 +1,26 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8">
+<title>讯飞杯 2026 智能车 本地预览</title>
+<style>body{background:#111;color:#eee;font-family:Segoe UI,Microsoft YaHei,sans-serif;margin:24px}img{max-width:100%;border:1px solid #333;margin:8px 0}pre{background:#1b1b1b;padding:12px;border:1px solid #333}</style>
+<h1>智能车闭环演示（本地、无 ROS）</h1>
+<pre>本地闭环演示结果
+================
+任务结果：DONE
+仿真时长：27.2 s
+触发泊车用时：21.2 s
+终点到底板中心距离：0.97 m
+巡线最大偏移：0.52（0=居中，1=最右）
+最近障碍距离：1.13 m
+二维码内容：{"order_id":"A03","consignee":"zhang_san","destination":"door_3","priority":2,"weight_kg":1.5}
+
+说明：二维码框在本地是按几何投影模拟的；
+车上由 pyzbar 真正解码，其余算法完全一致。</pre>
+<h2>俯视轨迹</h2>
+<img src="trajectory.png">
+<h2>相机视角（模拟 HUD）</h2>
+<p>T+6.1s</p><img src="frame_00.png">
+<p>T+12.0s</p><img src="frame_01.png">
+<p>T+18.0s</p><img src="frame_02.png">
+<p>T+21.2s</p><img src="frame_03.png">
+<p>T+24.0s</p><img src="frame_04.png">
+<p>T+27.2s</p><img src="frame_05.png">
+</html>

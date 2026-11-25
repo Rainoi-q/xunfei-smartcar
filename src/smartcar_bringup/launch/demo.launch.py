@@ -1,15 +1,17 @@
-"""无车阶段联调：视频回放 → 视觉感知 → 巡线控制。
+"""无车阶段联调：视频回放 → 视觉感知 → 巡线控制 → 仲裁输出。
 
-适用于还没有拿到车的阶段，用一段道路视频验证整条链路是否打通。
+用一段道路视频验证整条链路是否打通；话题名与实车/仿真完全一致，
+换成真实相机只需把 camera_driver 换成厂家相机 launch。
 
 用法：
     ros2 launch smartcar_bringup demo.launch.py video_path:=/home/xxx/line.mp4
 
 另开终端观察：
     ros2 topic echo /perception/line
-    ros2 topic echo /perception/traffic_light
-    ros2 topic hz /camera/image_raw
+    ros2 topic echo /perception/qr_payload
+    ros2 topic echo /control/arbiter_state
     ros2 run rqt_image_view rqt_image_view /perception/debug_image
+    ros2 run rqt_image_view rqt_image_view /hud/image
 """
 
 from launch import LaunchDescription
@@ -24,6 +26,7 @@ def generate_launch_description():
     video_path = LaunchConfiguration('video_path')
     params_file = LaunchConfiguration('params_file')
     use_rviz = LaunchConfiguration('use_rviz')
+    use_hud = LaunchConfiguration('use_hud')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -37,8 +40,11 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'use_rviz', default_value='false',
             description='是否启动 RViz2（一般看 debug_image 更方便）'),
+        DeclareLaunchArgument(
+            'use_hud', default_value='true',
+            description='是否启动 HUD'),
 
-        LogInfo(msg='[demo] 启动视频回放 + 视觉感知 + 巡线控制'),
+        LogInfo(msg='[demo] 视频回放 + 视觉感知 + 巡线控制 + 速度仲裁'),
 
         Node(
             package='camera_driver',
@@ -48,6 +54,7 @@ def generate_launch_description():
             parameters=[params_file, {
                 'source': 'video',
                 'video_path': video_path,
+                'image_topic': '/camera/color/image_raw',
             }],
         ),
 
@@ -65,6 +72,24 @@ def generate_launch_description():
             name='line_follower',
             output='screen',
             parameters=[params_file],
+        ),
+
+        # 没有仲裁器时 /cmd_vel 不会有任何输出，这是刻意的安全设计
+        Node(
+            package='cmd_vel_arbiter',
+            executable='arbiter_node',
+            name='cmd_vel_arbiter',
+            output='screen',
+            parameters=[params_file],
+        ),
+
+        Node(
+            package='hud',
+            executable='hud_node',
+            name='hud',
+            output='screen',
+            parameters=[params_file],
+            condition=IfCondition(use_hud),
         ),
 
         Node(

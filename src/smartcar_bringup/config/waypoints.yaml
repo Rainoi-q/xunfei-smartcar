@@ -1,0 +1,29 @@
+# 航点与路线（nav2 坐标系 map 下的 x, y, yaw）
+#
+# ⚠️ 下面这套点是为了“虚拟仿真”和占位写的，实车必须重新录制：
+#   1. 用出厂建图/定位 launch 启动 nav2，让 AMCL 定位收敛；
+#   2. 手动遥控车到投递点，另开终端启动录制器：
+#        ros2 run waypoint_nav record_waypoint --ros-args \
+#          -p waypoints_file:=$HOME/smartcar_ws/src/smartcar_bringup/config/waypoints.yaml
+#   3. 每到一个点发布一次名字：
+#        ros2 topic pub --once /mission/record_waypoint std_msgs/msg/String "{data: door_3}"
+#   4. 录完后把 routes 里的顺序按现场调整。
+#      注意：录制器重写文件时会丢掉本文件的注释，建议先备份。
+#
+# yaw 单位弧度；可以写成 3.14（面朝 -x）。
+frame_id: map
+
+waypoints:
+  start:      {x: 0.90, y: 1.00, yaw: 0.00}
+  turn_mid:   {x: 2.80, y: 2.20, yaw: 1.08}
+  upper_mid:  {x: 4.20, y: 4.00, yaw: 0.79}
+  dock_3:     {x: 4.60, y: 4.40, yaw: 0.79}
+  door_3:     {x: 4.60, y: 4.40, yaw: 0.79}
+
+routes:
+  # 二维码 destination=door_3 时走的路线（见 destinations.yaml 的别名）
+  deliver_3: [turn_mid, upper_mid, dock_3]
+  # 回到起点
+  home: [start]
+  # 单点测试
+  test: [turn_mid, start]

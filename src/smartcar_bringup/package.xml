@@ -3,7 +3,7 @@
 <package format="3">
   <name>smartcar_bringup</name>
   <version>0.1.0</version>
-  <description>一键启动、全局参数与调试入口</description>
+  <description>一键启动、全局参数、航点与路线配置</description>
 
   <maintainer email="1830702190@qq.com">SmartCar Team</maintainer>
   <license>Apache-2.0</license>
@@ -12,10 +12,20 @@
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
-  <exec_depend>smartcar_msgs</exec_depend>
   <exec_depend>camera_driver</exec_depend>
   <exec_depend>vision_detect</exec_depend>
+  <exec_depend>lighting_adaptor</exec_depend>
+  <exec_depend>ocr_reader</exec_depend>
   <exec_depend>line_follower</exec_depend>
+  <exec_depend>obstacle_avoider</exec_depend>
+  <exec_depend>cmd_vel_arbiter</exec_depend>
+  <exec_depend>parking</exec_depend>
+  <exec_depend>waypoint_nav</exec_depend>
+  <exec_depend>mission_manager</exec_depend>
+  <exec_depend>hud</exec_depend>
+  <exec_depend>virtual_sim</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>web_video_server</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

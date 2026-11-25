@@ -3,7 +3,7 @@
 <package format="3">
   <name>vision_detect</name>
   <version>0.1.0</version>
-  <description>视觉感知：巡线偏移、红绿灯识别、二维码解析</description>
+  <description>视觉感知：巡线偏移 + 二维码多字段解析（本次不做红绿灯）</description>
 
   <maintainer email="1830702190@qq.com">SmartCar Team</maintainer>
   <license>Apache-2.0</license>
@@ -12,7 +12,6 @@
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>cv_bridge</depend>
-  <depend>smartcar_msgs</depend>
   <exec_depend>python3-opencv</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-pyzbar</exec_depend>

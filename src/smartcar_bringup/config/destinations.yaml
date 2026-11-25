@@ -1,0 +1,13 @@
+# 二维码 destination 字段 → waypoints.yaml 中的路线名
+#
+# 二维码里的 destination 是“给谁看”的业务字段（如 door_3），
+# 真正开车用的路线名在 waypoints.yaml 的 routes 里。
+# 这里只做映射，不改二维码内容，也不改代码。
+#
+# 没写在这里的 destination 会被当成路线名/航点名直接使用，
+# 所以 destination 也可以直接写 deliver_3、home。
+aliases:
+  door_3: deliver_3
+  door_1: deliver_3
+  home: home
+  test: test

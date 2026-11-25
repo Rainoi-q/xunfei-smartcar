@@ -36,3 +36,6 @@ media/
 *.log
 *.tmp
 ~$*
+
+# 临时抓帧（排障产物）
+out/grab_*.png

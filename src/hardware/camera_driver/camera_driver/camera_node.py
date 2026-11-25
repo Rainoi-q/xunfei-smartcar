@@ -5,7 +5,9 @@
     source:=video    视频文件回放，供无车阶段开发使用
 
 发布：
-    /camera/image_raw     sensor_msgs/Image (bgr8)
+    /camera/color/image_raw   sensor_msgs/Image (bgr8)
+        image_topic 参数可改；默认与出厂 Astra 彩色话题一致，
+        这样回放视频与实车相机对上层节点完全透明。
 
 订阅：
     /camera/set_exposure  std_msgs/Int32
@@ -45,6 +47,7 @@ class CameraNode(Node):
         self.declare_parameter('exposure_absolute', 120)
         self.declare_parameter('gain', 0)
         self.declare_parameter('frame_id', 'camera_link')
+        self.declare_parameter('image_topic', '/camera/color/image_raw')
 
         self.source = self.get_parameter('source').value
         self.fps = float(self.get_parameter('fps').value)
@@ -52,7 +55,8 @@ class CameraNode(Node):
 
         self.bridge = CvBridge()
         self.pub = self.create_publisher(
-            Image, '/camera/image_raw', qos_profile_sensor_data)
+            Image, str(self.get_parameter('image_topic').value),
+            qos_profile_sensor_data)
         self.create_subscription(
             Int32, '/camera/set_exposure', self.on_set_exposure, 10)
 

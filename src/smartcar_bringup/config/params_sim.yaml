@@ -1,0 +1,31 @@
+# ======================================================================
+# 仿真专用参数覆盖（只有 sim.launch.py 会加载）
+# ----------------------------------------------------------------------
+# 为什么不直接在 launch 里写 dict 覆盖：
+#   launch 里的 dict 会生成 /** 通配段，而 params.yaml 里有
+#   parking: / mission_manager: 这样的具名段，ROS 2 规则是
+#   “命名空间更具体者优先”，通配段永远压不过具名段。
+#   所以仿真和实车不同的参数必须写成本文件的具名段，
+#   再在 sim.launch.py 里按 [params.yaml, params_sim.yaml] 顺序传入。
+# ======================================================================
+
+parking:
+  ros__parameters:
+    # 正交视角下二维码高度占比不随距离变化，仿真改走深度测距
+    auto_enable: false
+    target_height_ratio: 2.0
+    target_distance: 1.0
+    approach_speed: 0.18
+    timeout: 45.0
+
+mission_manager:
+  ros__parameters:
+    # 仿真没有 nav2：二维码下单后直接进入泊车
+    skip_navigation: true
+
+virtual_sim:
+  ros__parameters:
+    # 演示/录像用：任务 DONE 或 FAILED 后自动复位，循环跑，
+    # 网页上永远能看到车在动（不用反复重启 launch）
+    auto_loop: true
+    loop_delay: 6.0

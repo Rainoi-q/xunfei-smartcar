@@ -3,7 +3,7 @@
 <package format="3">
   <name>line_follower</name>
   <version>0.1.0</version>
-  <description>巡线 PID 控制：偏移量转 /cmd_vel</description>
+  <description>巡线 PID 控制：偏移量转 /cmd_vel_line（经仲裁器生效）</description>
 
   <maintainer email="1830702190@qq.com">SmartCar Team</maintainer>
   <license>Apache-2.0</license>
@@ -11,6 +11,7 @@
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>rcl_interfaces</depend>
 
   <export>
     <build_type>ament_python</build_type>

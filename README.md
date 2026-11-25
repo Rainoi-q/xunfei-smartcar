@@ -25,33 +25,43 @@
 ```
 smartcar_ws/
 ├── src/
-│   ├── smartcar_msgs/        # 公共消息定义（全组依赖，已实现）
-│   ├── smartcar_bringup/     # 一键启动、参数配置（已实现）
-│   ├── hardware/             # 硬件驱动层
-│   │   ├── camera_driver/    # 相机采集/视频回放（已实现）
-│   │   ├── base_driver/      # 底盘驱动（选车后实现）
-│   │   └── range_driver/     # 超声波/测距（选车后实现）
-│   ├── perception/           # 感知层
-│   │   ├── vision_detect/    # 巡线/红绿灯/二维码（已实现）
-│   │   └── lighting_adaptor/ # 光照判断 + 曝光自适应
-│   ├── control/              # 运动控制
-│   │   ├── line_follower/    # 巡线 PID（已实现）
-│   │   ├── obstacle_avoider/
-│   │   └── parking/
-│   ├── interaction/          # 交互
-│   │   ├── voice_input/
-│   │   └── nlp_planner/
-│   ├── mission/              # 任务状态机（核心）
-│   │   └── mission_manager/
-│   └── simulation/           # Gazebo 场景（对应功能⑭）
+│   ├── smartcar_msgs/        # 公共消息定义（保留；本轮 ①②③⑧⑩ 不用）
+│   ├── smartcar_bringup/     # 一键启动 launch + 全局参数 + 航点/别名
+│   ├── hardware/
+│   │   └── camera_driver/    # UVC 相机 / 视频回放（实车 Astra 用厂家节点）
+│   ├── perception/
+│   │   ├── vision_detect/    # 巡线 + 二维码多字段
+│   │   ├── lighting_adaptor/ # 光照分级 + 曝光自适应（⑥⑦）
+│   │   └── ocr_reader/       # tesseract OCR（⑤）
+│   ├── control/
+│   │   ├── line_follower/    # 巡线 PID（⑫）
+│   │   ├── obstacle_avoider/ # 雷达 + 深度避障（⑪）
+│   │   ├── cmd_vel_arbiter/  # 唯一 /cmd_vel 出口
+│   │   └── parking/          # 二维码引导泊车（⑨）
+│   ├── mission/
+│   │   ├── waypoint_nav/     # nav2 航点导航 + 航点录制（⑬）
+│   │   └── mission_manager/  # 任务状态机
+│   ├── interaction/
+│   │   └── hud/              # /hud/image 叠加画面
+│   └── simulation/
+│       └── virtual_sim/      # 2D 虚拟仿真（⑭）
+├── tests/                    # 102 个 pytest（纯算法，无 ROS）
+├── tools/
+│   ├── local_demo.py         # Windows 上无 ROS 闭环演示
+│   ├── make_qr_samples.py    # 生成可打印二维码
+│   └── gen_qr_asset.py       # 重新生成仿真二维码位图
 ├── docs/
-│   ├── 接口文档.md            # Topic 契约，改动需全组评审
-│   └── 分支与协作规范.md
+│   ├── 使用说明.md            # ⭐ 上车/仿真/本地演示全流程
+│   ├── 功能对照表.md          # 功能编号 ↔ 代码文件
+│   ├── 接口文档.md            # Topic 契约（v2.0）
+│   ├── 功能清单.md            # 完成度追踪
+│   ├── 分支与协作规范.md
+│   └── 硬件参数.md
 └── README.md
 ```
 
-> 已实现：`smartcar_msgs`、`smartcar_bringup`、`camera_driver`、`vision_detect`、`line_follower`。
-> 其余目录为**待建设的包**，由对应负责人在第一周内按 README 创建。各目录下的 README 写明了包名与职责。
+> 本轮交付 9 项功能：④⑤⑥⑦⑨⑪⑫⑬⑭（①②③⑧⑩ 明确不做）。
+> 详细用法见 **`docs/使用说明.md`**，功能与代码对应见 **`docs/功能对照表.md`**。
 
 ---
 
@@ -59,67 +69,65 @@ smartcar_ws/
 
 ### 3.1 环境
 
-Ubuntu 22.04 + ROS2 Humble。安装方式见《方案一》附录B。
+实车是 **WHEELTEC RDK X5**（aarch64，Ubuntu 22.04 + ROS2 Humble），
+出厂工程在 `~/wheeltec_ros2`，本工程独立放在 `~/smartcar_ws`，互不改动。
 
-### 3.2 克隆与编译
+### 3.2 编译
 
 ```bash
-git clone <本仓库地址> ~/smartcar_ws
 cd ~/smartcar_ws
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install
 source install/setup.bash
 ```
 
-> ⚠️ 必须克隆到 Linux 家目录（`~/smartcar_ws`），**不要放在 `/mnt/c/...` 或共享文件夹**，否则编译极慢且权限异常。
+> ⚠️ 必须放在 Linux 家目录（`~/smartcar_ws`），**不要放在 `/mnt/c/...` 或共享文件夹**。
 
-### 3.3 验证环境
-
-```bash
-ros2 interface show smartcar_msgs/msg/TaskPlan
-ros2 launch smartcar_bringup bringup.launch.py
-```
-
-第一条能打印消息结构、第二条能正常启动，说明环境与仓库都通了。
-
-如果编译时报缺少 `cv_bridge` / `cv2` / `pyzbar`，执行：
+### 3.3 本地验证（不接车）
 
 ```bash
-sudo apt install -y ros-humble-cv-bridge python3-opencv python3-numpy \
-                    python3-pyzbar libzbar0
+python -m pytest tests -q                 # 102 个用例，纯算法
+python tools/local_demo.py                # 闭环演示 → out/preview.html
+ros2 launch smartcar_bringup sim.launch.py  # ROS 虚拟仿真
 ```
+
+### 3.4 实车启动
+
+先启动厂家底盘/相机/雷达（launch 名以 `~/wheeltec_ros2` 为准），确认
+`/camera/color/image_raw`、`/scan`、`/odom` 在线，然后：
+
+```bash
+ros2 launch smartcar_bringup bringup.launch.py start_web_video:=true
+```
+
+详细步骤、参数标定、航点录制、排障见 **`docs/使用说明.md`**。
 
 ---
 
 ## 四、无车阶段联调（视频回放）
 
-车辆到位前，用一段道路视频验证「相机 → 视觉 → 控制」整条链路。
+用一段巡线视频验证「相机 → 视觉 → 巡线 → 仲裁」整条链路（不接底盘，车不会动）：
 
 ```bash
-# 准备一段巡线视频，例如 ~/Videos/line.mp4
 ros2 launch smartcar_bringup demo.launch.py video_path:=$HOME/Videos/line.mp4
 
 # 另开终端观察
-ros2 topic hz  /camera/image_raw              # 应有 ~30 Hz
-ros2 topic echo /perception/line              # 应有 [-1,1] 的偏移
-ros2 topic echo /perception/traffic_light     # 出现红绿灯时有有效帧
-ros2 topic echo /cmd_vel                      # 有 PID 输出
+ros2 topic hz  /camera/color/image_raw      # ~30 Hz
+ros2 topic echo /perception/line            # [-1,1] 偏移，NaN=丢失
+ros2 topic echo /perception/qr_payload      # 画面里出现二维码时
+ros2 topic echo /control/arbiter_state      # mode/速度
 ros2 run rqt_image_view rqt_image_view /perception/debug_image
 ```
 
-**用真实摄像头**：把 `params.yaml` 里 `camera_driver.source` 改成 `device`，
-`device` 指向设备节点（默认 `/dev/video0`），然后直接 `ros2 run`：
+**用真实 UVC 摄像头**（实车 Astra 用厂家节点，不需要本节）：
 
 ```bash
-ros2 run camera_driver camera_node            # 只开相机
-ros2 run vision_detect vision_node            # 只开视觉
+ros2 run camera_driver camera_node            # source=device
+ros2 run vision_detect vision_node
 ```
 
-**调参纪律**：只改 `src/smartcar_bringup/config/params.yaml`，不要改代码里的默认值。
-红绿灯 HSV 阈值必须按场地实测灯光重新标定（见 `docs/功能清单.md` ⑩）。
-
-> ⚠️ 本阶段 `/cmd_vel` 只发到话题，没有底盘节点执行，车不会动。上实车前先确认
-> `base_driver` 已实现、且 `line_follower` 的 `enable` 参数可控。
+**调参纪律**：只改 `src/smartcar_bringup/config/params.yaml`，不要改代码默认值。
+改完重新 `colcon build` 或重发 launch。
 
 ---
 
@@ -169,13 +177,15 @@ ros2 run vision_detect vision_node            # 只开视觉
 
 ---
 
-## 七、第一周里程碑（11月15日前）
+## 七、当前里程碑（11-30 初赛提交前）
 
-- [ ] 全员能克隆并 `colcon build` 通过
-- [ ] `smartcar_msgs` 消息定义冻结
-- [ ] 各成员完成自己包的创建与空节点
-- [ ] 仿真环境跑通巡线 + 避障 + 语音下令
-- [ ] 车型锁定，硬件参数写入 `docs/硬件参数.md`
+- [x] 9 项功能代码完成，102 个单元测试通过
+- [x] 本地闭环演示跑通（巡线 → 读码 → 泊车）
+- [x] 虚拟仿真一键启动（`sim.launch.py`）
+- [x] 使用说明 / 接口文档 / 功能对照表
+- [ ] 代码部署到 RDK X5 并 `colcon build` 通过
+- [ ] 实车巡线 + 避障 + 二维码 + 泊车逐项验证（见 `docs/功能清单.md` 勾选表）
+- [ ] 录制功能演示视频，提交 PPT
 
 ---
 
@@ -189,10 +199,12 @@ ros2 run vision_detect vision_node            # 只开视觉
 
 ## 九、相关文档
 
-- 《方案一：原方案（全员开发）》— 桌面文档
-- 《方案二：D方案（成果与验证负责人）》— 桌面文档
-- `docs/接口文档.md` — Topic 与消息契约
+- `docs/使用说明.md` — ⭐ 上车部署、启动顺序、任务操作、参数标定、排障
+- `docs/功能对照表.md` — 功能编号 ↔ 包/文件/话题 ↔ 本地证据
+- `docs/接口文档.md` — Topic 与消息契约（v2.0）
+- `docs/功能清单.md` — 14 项完成度追踪
 - `docs/分支与协作规范.md` — 日常协作细则
+- 《方案一：原方案（全员开发）》《方案二：D方案》— 桌面文档（立项时）
 
 ---
 
